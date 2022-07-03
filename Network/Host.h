@@ -22,20 +22,26 @@ protected:
 #pragma region Initialization
 protected:
 	Host(bool _getIPFromUser);
-	virtual int init(const char* _address, short _port) = 0;
+	virtual int Initialize(const char* _address, short _port) = 0;
 #pragma endregion
 
-#pragma region Public Functionality
+#pragma region Update
 public:
-	int readMessage();
-	int sendMessage();
-	virtual void stop() = 0;
+	virtual void Update() = 0;
 #pragma endregion
 
-#pragma region Private Functionality
+#pragma region Functionality
+public:
+	virtual void CloseSockets() = 0;
+
+protected:
+	int HandleMessageReceive(SOCKET _socket);
+	int HandleMessageSend();
+	void HandleReturnValue(int _returnValue);
+
 private:
-	int tcp_recv_whole(SOCKET s, char* buf, int len);
-	int tcp_send_whole(SOCKET skSocket, const char* data, short length);
+	int TCPMessageReceive(SOCKET _socket, char* buf, int len);
+	int TCPMessageSend(SOCKET _socket, const char* data, short length);
 #pragma endregion
 
 #pragma region Denitialization

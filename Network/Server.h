@@ -7,25 +7,32 @@ class Server final : public Host
 {
 #pragma region Variables
 private:
+	static const int MAX_CONNECTIONS = 5;
+	SOCKET m_allSockets[MAX_CONNECTIONS];
 	SOCKET m_listeningSocket;
 #pragma endregion
 
 #pragma region Initialization
 protected:
-	int init(const char* _address, short _port) final;
+	int Initialize(const char* _address, short _port);
 
 public:
 	Server();
 #pragma endregion
 
-#pragma region Private Functionality
+#pragma region Update
+public:
+	void Update();
+#pragma endregion
+
+#pragma region Functionality
 private:
-	void stop() final;
+	void CloseSockets();
 #pragma endregion
 
 #pragma region Denitialization
 public:
-	virtual ~Server() final;
+	virtual ~Server();
 #pragma endregion
 
 	//1. Create the TCP listening socket

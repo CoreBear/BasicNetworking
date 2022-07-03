@@ -89,7 +89,7 @@ void HelperFunctionality::GetValidIPAddress(char* _buffer, int _bufferLength)
 		// Get user IP address
 		GetUserString("Enter IP address in dot format: ", _buffer, _bufferLength);
 
-		// If valid, stop attempting
+		// If valid, CloseSockets attempting
 		if (IPIsValid(_buffer))
 		{
 			break;

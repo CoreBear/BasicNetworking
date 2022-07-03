@@ -10,17 +10,22 @@ public:
 	Client();
 
 protected:
-	int init(const char* _address, short _port) final;
+	int Initialize(const char* _address, short _port);
 #pragma endregion
 
-#pragma region Private Functionality
+#pragma region Update
+public:
+	void Update();
+#pragma endregion
+
+#pragma region Functionality
 private:
-	void stop() final;
+	void CloseSockets();
 #pragma endregion
 
 #pragma region Denitialization
 public:
-	virtual ~Client() final;
+	virtual ~Client();
 #pragma endregion
 
 	//1. Prompt the user for the server's IP address and port number (this step will be replaced by the information received on the UDP connection in phase 2)

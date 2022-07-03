@@ -3,42 +3,20 @@
 #pragma region Initialization
 Client::Client() : Host(true)
 {
-	switch (init(m_buffer, m_portNumber))
-	{
-	case SUCCESS:
-		break;
-	case ADDRESS_ERROR:
-		break;
-	case BIND_ERROR:
-		break;
-	case CONNECT_ERROR:
-		break;
-	case DISCONNECT:
-		break;
-	case MESSAGE_ERROR:
-		break;
-	case PARAMETER_ERROR:
-		break;
-	case SETUP_ERROR:
-		break;
-	case SHUTDOWN:
-		break;
-	case STARTUP_ERROR:
-		break;
-	}
+	HandleReturnValue(Initialize(m_buffer, m_portNumber));
 }
-int Client::init(const char* _address, short _port)
+int Client::Initialize(const char* _address, short _port)
 {
 	// Create socket
 	m_comSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (m_comSocket == INVALID_SOCKET)
 	{
-		printf("DEBUG// Socket function incorrect\n");
+		std::cout << "DEBUG// Socket function incorrect" << std::endl;
 		return SETUP_ERROR;
 	}
 	else
 	{
-		printf("DEBUG// I used the socket function\n");
+		std::cout << "DEBUG// I used the socket function" << std::endl;
 	}
 
 	//If address is not in dotted - quadrant format, returns ADDRESS_ERROR.
@@ -56,22 +34,32 @@ int Client::init(const char* _address, short _port)
 	int result = connect(m_comSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr));
 	if (result == SOCKET_ERROR)
 	{
-		printf("DEBUG// Connect function incorrect\n");
+		std::cout << "DEBUG// Connect function incorrect" << std::endl;
 		
 		int error = WSAGetLastError();
 		return (error == WSAESHUTDOWN || error == WSAEDISCON) ? SHUTDOWN : CONNECT_ERROR;
 	}
 	else
 	{
-		printf("DEBUG// I used the Connect function\n");
+		std::cout << "DEBUG// I used the Connect function" << std::endl;
 	}
 
 	return SUCCESS;
 }
 #pragma endregion
 
+#pragma region Update
+void Client::Update()
+{
+	while (true)
+	{
+		HandleReturnValue(HandleMessageSend());
+	}
+}
+#pragma endregion
+
 #pragma region Private Functionality
-void Client::stop()
+void Client::CloseSockets()
 {
 	shutdown(m_comSocket, SD_BOTH);
 	closesocket(m_comSocket);
@@ -81,6 +69,6 @@ void Client::stop()
 #pragma region Denitialization
 Client::~Client()
 {
-	stop();
+	CloseSockets();
 }
 #pragma endregion

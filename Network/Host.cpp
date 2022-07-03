@@ -22,14 +22,14 @@ Host::Host(bool _getIPFromUser) : m_comSocket(0)
 }
 #pragma endregion
 
-#pragma region Public Functionality
-int Host::readMessage()
+#pragma region Protected Functionality
+int Host::HandleMessageReceive(SOCKET _socket)
 {
 	// Variable for how big the message (partial or full) is/will be
 	char size = 0;
 
 	// Read just the header to see how big the message will be
-	int result = tcp_recv_whole(m_comSocket, (char*)&size, 1);
+	int result = TCPMessageReceive(_socket, (char*)&size, 1);
 	if ((result == SOCKET_ERROR) || (result == 0))
 	{
 		printf("DEBUG// recv is incorrect\n");
@@ -39,7 +39,7 @@ int Host::readMessage()
 	}
 
 	// Read the message
-	result = tcp_recv_whole(m_comSocket, m_buffer, size);
+	result = TCPMessageReceive(_socket, m_buffer, size);
 	if ((result == SOCKET_ERROR) || (result == 0))
 	{
 		printf("DEBUG// recv is incorrect\n");
@@ -53,7 +53,7 @@ int Host::readMessage()
 
 	return SUCCESS;
 }
-int Host::sendMessage()
+int Host::HandleMessageSend()
 {
 	// Reset buffer
 	memset(m_buffer, 0, USHRT_MAX);
@@ -62,7 +62,7 @@ int Host::sendMessage()
 	byte size = HelperFunctionality::GetUserString("Say something: ", m_buffer, USHRT_MAX);
 
 	// Send the header so the receiver knows how big the message will be
-	int result = tcp_send_whole(m_comSocket, (char*)&size, 1);
+	int result = TCPMessageSend(m_comSocket, (char*)&size, 1);
 	if ((result == SOCKET_ERROR) || (result == 0))
 	{
 		printf("DEBUG// send is incorrect\n");
@@ -72,7 +72,7 @@ int Host::sendMessage()
 	}
 
 	// Send the message
-	result = tcp_send_whole(m_comSocket, m_buffer, size);
+	result = TCPMessageSend(m_comSocket, m_buffer, size);
 	if ((result == SOCKET_ERROR) || (result == 0))
 	{
 		printf("DEBUG// send is incorrect\n");
@@ -86,16 +86,37 @@ int Host::sendMessage()
 
 	return SUCCESS;
 }
+void Host::HandleReturnValue(int _returnValue)
+{
+	switch (_returnValue)
+	{
+	case SUCCESS:
+		break;
+	case ADDRESS_ERROR:
+	case BIND_ERROR:
+	case CONNECT_ERROR:
+	case DISCONNECT:
+	case MESSAGE_ERROR:
+	case PARAMETER_ERROR:
+	case SETUP_ERROR:
+	case SHUTDOWN:
+	case STARTUP_ERROR:
+	{
+		CloseSockets();
+	}
+	break;
+	}
+}
 #pragma endregion
 
 #pragma region Private Functionality
-int Host::tcp_recv_whole(SOCKET s, char* buf, int len)
+int Host::TCPMessageReceive(SOCKET _socket, char* buf, int len)
 {
 	int total = 0;
 
 	do
 	{
-		int ret = recv(s, buf + total, len - total, 0);
+		int ret = recv(_socket, buf + total, len - total, 0);
 		if (ret < 1)
 			return ret;
 		else
@@ -105,14 +126,14 @@ int Host::tcp_recv_whole(SOCKET s, char* buf, int len)
 
 	return total;
 }
-int Host::tcp_send_whole(SOCKET skSocket, const char* data, short length)
+int Host::TCPMessageSend(SOCKET _socket, const char* data, short length)
 {
 	int result;
 	int bytesSent = 0;
 
 	while (bytesSent < length)
 	{
-		result = send(skSocket, (const char*)data + bytesSent, length - bytesSent, 0);
+		result = send(_socket, (const char*)data + bytesSent, length - bytesSent, 0);
 
 		if (result <= 0)
 			return result;

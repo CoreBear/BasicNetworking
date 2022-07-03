@@ -22,22 +22,14 @@ int main()
 	if ((hostTypeSelection - OFF_BY_ONE) == static_cast<int>(HostType::Client))
 	{
 		host = new Client();
-
-		// HACK: The client can send messages forever
-		while (true)
-		{
-			host->sendMessage();
-		}
+		
+		host->Update();
 	}
 	else
 	{
 		host = new Server();
 
-		// HACK: The server can receive messages forever
-		while (true)
-		{
-			host->readMessage();
-		}
+		host->Update();
 	}
 	
 
