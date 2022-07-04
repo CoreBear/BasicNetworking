@@ -65,88 +65,94 @@ Server::Server() : Host(false)
 {
 	HandleReturnValue(Initialize(nullptr, m_portNumber));
 
+	// Invalidate all sockets
 	for (size_t i = 0; i < MAX_CONNECTIONS; i++)
 	{
 		m_allSockets[i] = INVALID_SOCKET;
 	}
 
+	// Add the server's listening socket to the container
 	m_allSockets[0] = m_listeningSocket;
 }
 #pragma endregion
 
 #pragma region Update
-enum class DescriptorType { Exception, Read, Write, NumberOfTypes };
 void Server::Update()
 {
-	fd_set readyDescriptors[static_cast<size_t>(DescriptorType::NumberOfTypes)];
-	size_t i, j;
-
-	while (true)
+	// Initialize the descriptor set (the sockets used in select)
+	for (size_t i = 0, j; i < static_cast<size_t>(DescriptorType::NumberOfTypes); i++)
 	{
-		// Initialize the descriptor set (the sockets used in select)
-		for (i = 0; i < static_cast<size_t>(DescriptorType::NumberOfTypes); i++)
-		{
-			FD_ZERO(&readyDescriptors[i]);
+		// Reset all of them
+		FD_ZERO(&m_readyDescriptors[i]);
 
-			for (j = 0; j < MAX_CONNECTIONS; j++)
+		// For each possible connection
+		for (j = 0; j < MAX_CONNECTIONS; j++)
+		{
+			// If this element is a valid socket
+			if (m_allSockets[j] != INVALID_SOCKET)
 			{
-				if (m_allSockets[j] != INVALID_SOCKET)
-				{
-					FD_SET(m_allSockets[j], &readyDescriptors[i]);
-				}
+				// Add it to the descriptor set
+				FD_SET(m_allSockets[j], &m_readyDescriptors[i]);
 			}
 		}
+	}
 
-		// HACK: For now, wait forever (last NULL)
-		int result = select(static_cast<size_t>(DescriptorType::NumberOfTypes), &readyDescriptors[static_cast<size_t>(DescriptorType::Read)], NULL, NULL, NULL);// &readyDescriptors[static_cast<size_t>(DescriptorType::Write)], & readyDescriptors[static_cast<size_t>(DescriptorType::Exception)], NULL);
+	// HACK: For now, wait forever (last NULL)
+	int result = select(static_cast<size_t>(DescriptorType::NumberOfTypes), &m_readyDescriptors[static_cast<size_t>(DescriptorType::Read)], &m_readyDescriptors[static_cast<size_t>(DescriptorType::Write)], NULL, NULL);// &m_readyDescriptors[static_cast<size_t>(DescriptorType::Write)], & m_readyDescriptors[static_cast<size_t>(DescriptorType::Exception)], NULL);
 
-		// Error occurred during select
-		if (result < 0)
+	// Error occurred during select
+	if (result < 0)
+	{
+	}
+
+	// None of the sockets are ready
+	else if (result == 0)
+	{
+	}
+
+	// At least one socket is ready
+	else
+	{
+		// Check if the host with event is the server
+		if (FD_ISSET(m_listeningSocket, &m_readyDescriptors[static_cast<int>(DescriptorType::Read)]))
 		{
-		}
-
-		// None of the sockets are ready
-		else if (result == 0)
-		{
-		}
-
-		// At least one socket is ready
-		else
-		{
-			// Check if the host with event is the server
-			if (FD_ISSET(m_listeningSocket, &readyDescriptors[static_cast<int>(DescriptorType::Read)]))
+			// Accept new connection
+			m_comSocket = accept(m_listeningSocket, NULL, NULL);
+			if (m_comSocket == INVALID_SOCKET)
 			{
-				// Accept new connection
-				m_comSocket = accept(m_listeningSocket, NULL, NULL);
-				if (m_comSocket == INVALID_SOCKET)
-				{
-					std::cout << "DEBUG// Accept function incorrect" << std::endl;
-				}
+				std::cout << "DEBUG// Accept function incorrect" << std::endl;
+			}
 
-				for (i = 0; i < MAX_CONNECTIONS; i++)
+			// For each possible connection
+			for (size_t i = 0; i < MAX_CONNECTIONS; i++)
+			{
+				// If this element is an invalid socket
+				if (m_allSockets[i] == INVALID_SOCKET)
 				{
-					if (m_allSockets[i] == INVALID_SOCKET)
-					{
-						m_allSockets[i] = m_comSocket;
-						break;
-					}
-				}
-
-				if (--result > 0)
-				{
-					continue;
+					// Add the new connection and stop looking for a place to put it
+					m_allSockets[i] = m_comSocket;
+					break;
 				}
 			}
 
-			// Check if the host with event is a non-server
-			for (i = 1; i < MAX_CONNECTIONS; i++)
+			// If there were no more ready descriptors, the update is complete
+			if (--result > 0)
 			{
-				if (m_allSockets[i] != INVALID_SOCKET && FD_ISSET(m_allSockets[i], &readyDescriptors[static_cast<size_t>(DescriptorType::Read)]))
+				return;
+			}
+		}
+
+		// NOTE: Check if the host with event is a non-server
+		// For each possible connection
+		for (size_t i = 1; i < MAX_CONNECTIONS; i++)
+		{
+			// If connection is valid and it is ready
+			if (m_allSockets[i] != INVALID_SOCKET && FD_ISSET(m_allSockets[i], &m_readyDescriptors[static_cast<size_t>(DescriptorType::Read)]))
+			{
+				// Handle its message and if returns anything other than success, disconnect the socket
+				if (HandleMessageReceive(m_allSockets[i]) != SUCCESS)
 				{
-					if (HandleMessageReceive(m_allSockets[i]) != SUCCESS)
-					{
-						m_allSockets[i] = INVALID_SOCKET;
-					}
+					m_allSockets[i] = INVALID_SOCKET;
 				}
 			}
 		}

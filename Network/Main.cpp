@@ -22,16 +22,16 @@ int main()
 	if ((hostTypeSelection - OFF_BY_ONE) == static_cast<int>(HostType::Client))
 	{
 		host = new Client();
-		
-		host->Update();
 	}
 	else
 	{
 		host = new Server();
+	}
 
+	while (true)
+	{
 		host->Update();
 	}
-	
 
 	// Server
 	//- Advertise the TCP information over UDP connectiono

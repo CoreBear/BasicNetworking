@@ -51,10 +51,7 @@ int Client::Initialize(const char* _address, short _port)
 #pragma region Update
 void Client::Update()
 {
-	while (true)
-	{
-		HandleReturnValue(HandleMessageSend());
-	}
+	HandleReturnValue(HandleMessageSend());
 }
 #pragma endregion
 

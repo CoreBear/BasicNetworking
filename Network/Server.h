@@ -7,6 +7,8 @@ class Server final : public Host
 {
 #pragma region Variables
 private:
+	enum class DescriptorType { Exception, Read, Write, NumberOfTypes };
+	fd_set m_readyDescriptors[static_cast<size_t>(DescriptorType::NumberOfTypes)];
 	static const int MAX_CONNECTIONS = 5;
 	SOCKET m_allSockets[MAX_CONNECTIONS];
 	SOCKET m_listeningSocket;
