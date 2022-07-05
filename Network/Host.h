@@ -10,12 +10,54 @@
 
 #include "HelperFunctionality.h"
 
+// Command
+#define CCONNECT	"$connect"
+#define CDISCONNECT	"$disconnect"
+#define CEXIT		"$exit"
+#define CGET_LIST	"$get_list"
+#define CGET_LOG	"$get_log"
+#define CREGISTER	"$register"
+
+// Response
+#define RCONNECTED		"connected"
+#define RDISCONNECTED	"disconnected"
+#define REXITED			"exited"
+#define RGOT_LIST		"got_list"
+#define RGOT_LOG		"got_log"
+#define RREGISTERED		"registered"
+
+// Return Values
+#define SUCCESS  0
+#define ADDRESS_ERROR 1
+#define BIND_ERROR 2
+#define CONNECT_ERROR 3
+#define DISCONNECT 4
+#define MESSAGE_ERROR 5
+#define PARAMETER_ERROR 6
+#define SETUP_ERROR 7
+#define SHUTDOWN 8
+#define STARTUP_ERROR 9
+
+// Server Responses
+#define SV_FULL		"Server_Is_Full"
+#define SV_SUCCESS	"Server_Connection_Established"
+
+// Status
+#define SCONNECTED 0
+#define SREGISTERED 1
+
+
 class Host
 {
 #pragma region Variables
+private:
+	char m_sendBuffer[USHRT_MAX];
+
 protected:
-	char m_buffer[USHRT_MAX];
-	SOCKET m_comSocket;
+	char m_readBuffer[USHRT_MAX];
+	char m_tempBuffer[USHRT_MAX];
+	char* m_userName;
+	SOCKET m_tcpSocket;
 	ushort m_portNumber;
 #pragma endregion
 
@@ -32,14 +74,21 @@ public:
 
 #pragma region Functionality
 public:
-	virtual void CloseSockets() = 0;
+	inline bool HostIsConnected() const
+	{
+		return (m_tcpSocket != INVALID_SOCKET) ? true : false;
+	}
+	virtual void ReadTCP() { return; }
+	virtual void ReadUDP() { return; }
+	virtual void SendTCP() { return; }
 
 protected:
-	int HandleMessageReceive(SOCKET _socket);
-	int HandleMessageSend();
+	virtual int HandleMessageReceive(SOCKET _socket);
+	int HandleMessageSend(SOCKET _socket, const char* _message);
 	void HandleReturnValue(int _returnValue);
 
 private:
+	virtual void CloseSockets() = 0;
 	int TCPMessageReceive(SOCKET _socket, char* buf, int len);
 	int TCPMessageSend(SOCKET _socket, const char* data, short length);
 #pragma endregion

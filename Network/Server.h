@@ -3,20 +3,35 @@
 
 #include "Host.h"
 
+#include <vector>
+
 class Server final : public Host
 {
+#pragma region Structs
+private:
+	struct User
+	{
+		const char* m_userName;
+		int m_connectionStatus;
+		SOCKET m_socket;
+	};
+#pragma endregion
+
 #pragma region Variables
 private:
 	enum class DescriptorType { Exception, Read, Write, NumberOfTypes };
 	fd_set m_readyDescriptors[static_cast<size_t>(DescriptorType::NumberOfTypes)];
-	static const int MAX_CONNECTIONS = 5;
-	SOCKET m_allSockets[MAX_CONNECTIONS];
-	SOCKET m_listeningSocket;
+	int m_maxNumberOfUsers;
+	sockaddr_in m_serverAddr;
+	SOCKET m_clientReadySocket;
+	SOCKET m_udpSocket;
+	timeval m_timeVal;
+	std::vector<User*> m_connectedAndOrRegisteredUsers;// (MAX_NUMBER_OF_USERS);
 #pragma endregion
 
 #pragma region Initialization
 protected:
-	int Initialize(const char* _address, short _port);
+	virtual int Initialize(const char* _address, short _port) override;
 
 public:
 	Server();
@@ -24,17 +39,19 @@ public:
 
 #pragma region Update
 public:
-	void Update();
+	virtual void Update() override;
 #pragma endregion
 
 #pragma region Functionality
 private:
-	void CloseSockets();
+	virtual void CloseSockets() override;
+	void DisconnectUser(size_t _userBeingDisconnectedIndex);
+	void HandleCommand(size_t _userBeingReadIndex);
 #pragma endregion
 
 #pragma region Denitialization
 public:
-	virtual ~Server();
+	virtual ~Server() override;
 #pragma endregion
 
 	//1. Create the TCP listening socket

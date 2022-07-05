@@ -57,15 +57,15 @@ int HelperFunctionality::GetUserInt(const char* _prompt, int _max, int _min)
 
 	return input;
 }
-byte HelperFunctionality::GetUserString(const char* _prompt, char* _buffer, int _bufferLength)
+void HelperFunctionality::GetUserString(const char* _prompt, char* _buffer, int _bufferLength)
 {
-	// Prompt user
-	std::cout << _prompt;
+	// Prompt user (if applicable)
+	if (_prompt != nullptr)
+	{
+		std::cout << _prompt;
+	}
 
 	std::cin.getline(_buffer, _bufferLength);
-
-	// Off by one for the null terminator
-	return static_cast<byte>(strlen(_buffer) + OFF_BY_ONE);
 }
 int HelperFunctionality::GetUserSelection(const char* _prompt, const char** _options, int _numberOfOptions)
 {

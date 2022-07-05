@@ -1,36 +1,102 @@
 #include <iostream>
+#include <thread>
 
 #include "Client.h"
 #include "HelperFunctionality.h"
 #include "Host.h"
 #include "Server.h"
 
-enum class HostType { Client = 0, Server, NumberOfTypes };
-
+void MainThread(Host* _host)
+{
+	while (_host->HostIsConnected())
+	{
+		_host->Update();
+	}
+}
+void ReadTCP(Host* _host)
+{
+	while (_host->HostIsConnected())
+	{
+		_host->ReadTCP();
+	}
+}
+void ReadUDP(Host* _host)
+{
+	while (_host->HostIsConnected())
+	{
+		_host->ReadUDP();
+	}
+}
+void SendTCP(Host* _host)
+{
+	while (_host->HostIsConnected())
+	{
+		_host->SendTCP();
+	}
+}
 int main()
 {
-	const char* options[static_cast<int>(HostType::NumberOfTypes)] =
+	constexpr size_t NUMBER_OF_MENU_OPTIONS = 3;
+	const char* options[NUMBER_OF_MENU_OPTIONS] =
 	{
 		"Client",
 		"Server",
+		"Exit"
 	};
-
-	const int hostTypeSelection = HelperFunctionality::GetUserSelection("Would you like to create a Client or Server?", options, static_cast<int>(HostType::NumberOfTypes));
-	
-	// Creating two console applications for the client and server
-	Host* host;
-	if ((hostTypeSelection - OFF_BY_ONE) == static_cast<int>(HostType::Client))
-	{
-		host = new Client();
-	}
-	else
-	{
-		host = new Server();
-	}
 
 	while (true)
 	{
-		host->Update();
+		bool mainThreadIsInItsFunction = false;
+		const int hostTypeSelection = HelperFunctionality::GetUserSelection("Would you like to create a Client or Server?", options, NUMBER_OF_MENU_OPTIONS);
+
+		Host* host = nullptr;
+
+		// Creating two console applications for the client and server
+		switch (hostTypeSelection - OFF_BY_ONE)
+		{
+		case 0:
+		{
+			host = new Client();
+
+			if (host->HostIsConnected())
+			{
+				std::thread rTCP(ReadTCP, host);
+				std::thread rUDP(ReadUDP, host);
+				std::thread sTCP(SendTCP, host);
+
+				if (mainThreadIsInItsFunction == false)
+				{
+					mainThreadIsInItsFunction = true;
+
+					MainThread(host);
+				}
+
+				rTCP.join();
+				rUDP.join();
+				sTCP.join();
+			}
+		}
+			break;
+		case 1:
+		{
+			host = new Server();
+
+			while (host->HostIsConnected())
+			{
+				host->Update();
+			}
+		}
+			break;
+		default:
+			return 0;
+		}
+
+		delete host;
+		host = nullptr;
+
+		std::cout << "Host connection was closed, please try again.";
+		system("pause");
+		system("cls");
 	}
 
 	// Server
@@ -52,8 +118,6 @@ int main()
 	//			- Other commands permitted only after successful registration
 	//- Send and receive chat messages
 	//- Display the messages echoed by the server
-
-	delete host;
 
 	return 0;
 }

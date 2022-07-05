@@ -1,11 +1,13 @@
 #include "Host.h"
 
 #pragma region Initialization
-Host::Host(bool _getIPFromUser) : m_comSocket(0)
+Host::Host(bool _getIPFromUser) : m_tcpSocket(0)
 {
 	// Initiates use of WS2_32.DLL by a processand must be called before any network functions!
 	WSADATA wsadata;
 	WSAStartup(WINSOCK_VERSION, &wsadata);
+
+	m_userName = new char[USHRT_MAX];
 
 	// Examples
 	// IP (Loopback) - "127.0.0.1"
@@ -13,7 +15,7 @@ Host::Host(bool _getIPFromUser) : m_comSocket(0)
 	if (_getIPFromUser)
 	{
 		// Get IP address from user
-		HelperFunctionality::GetValidIPAddress(m_buffer, UCHAR_MAX);
+		HelperFunctionality::GetValidIPAddress(m_tempBuffer, UCHAR_MAX);
 	}
 
 	// Get port number from user
@@ -39,7 +41,7 @@ int Host::HandleMessageReceive(SOCKET _socket)
 	}
 
 	// Read the message
-	result = TCPMessageReceive(_socket, m_buffer, size);
+	result = TCPMessageReceive(_socket, m_readBuffer, size);
 	if ((result == SOCKET_ERROR) || (result == 0))
 	{
 		printf("DEBUG// recv is incorrect\n");
@@ -48,21 +50,16 @@ int Host::HandleMessageReceive(SOCKET _socket)
 		return (error == WSAESHUTDOWN || error == WSAEDISCON) ? SHUTDOWN : CONNECT_ERROR;
 	}
 
-	// Print it to the console
-	std::cout << m_buffer << std::endl;
-
 	return SUCCESS;
 }
-int Host::HandleMessageSend()
+int Host::HandleMessageSend(SOCKET _socket, const char* _message)
 {
-	// Reset buffer
-	memset(m_buffer, 0, USHRT_MAX);
+	strcpy(m_sendBuffer, _message);
 
-	// Get user input
-	byte size = HelperFunctionality::GetUserString("Say something: ", m_buffer, USHRT_MAX);
-
+	byte size = static_cast<byte>(strlen(m_sendBuffer) + OFF_BY_ONE);
+	
 	// Send the header so the receiver knows how big the message will be
-	int result = TCPMessageSend(m_comSocket, (char*)&size, 1);
+	int result = TCPMessageSend(_socket, (char*)&size, 1);
 	if ((result == SOCKET_ERROR) || (result == 0))
 	{
 		printf("DEBUG// send is incorrect\n");
@@ -72,7 +69,7 @@ int Host::HandleMessageSend()
 	}
 
 	// Send the message
-	result = TCPMessageSend(m_comSocket, m_buffer, size);
+	result = TCPMessageSend(_socket, m_sendBuffer, size);
 	if ((result == SOCKET_ERROR) || (result == 0))
 	{
 		printf("DEBUG// send is incorrect\n");
@@ -80,9 +77,6 @@ int Host::HandleMessageSend()
 		int error = WSAGetLastError();
 		return (error == WSAESHUTDOWN || error == WSAEDISCON) ? SHUTDOWN : CONNECT_ERROR;
 	}
-
-	// Notify the user
-	std::cout << "Message sent!" << std::endl;
 
 	return SUCCESS;
 }
@@ -148,6 +142,9 @@ int Host::TCPMessageSend(SOCKET _socket, const char* data, short length)
 #pragma region Denitialization
 Host::~Host()
 {
+	delete[] m_userName;
+	m_userName = nullptr;
+
 	// Terminates use of the WS2_32.DLL
 	WSACleanup();
 }
