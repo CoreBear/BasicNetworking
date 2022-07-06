@@ -1,11 +1,11 @@
 #include "Client.h"
 
 #pragma region Initialization
-Client::Client() : Host(true)
+Client::Client() : m_islogging(false)
 {
-	HandleReturnValue(Initialize(m_tempBuffer, m_portNumber));
+	HandleReturnValue(Initialize());
 }
-int Client::Initialize(const char* _address, short _port)
+int Client::Initialize()
 {
 	m_udpSocket = socket(AF_INET, SOCK_DGRAM, 0);
 	if (m_udpSocket == INVALID_SOCKET)
@@ -19,11 +19,13 @@ int Client::Initialize(const char* _address, short _port)
 	}
 
 	char broadcast = '1';
-	int result = setsockopt(m_udpSocket, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast));
-
-	m_servaddr.sin_family = AF_INET;
-	m_servaddr.sin_port = htons(_port);
-	m_servaddr.sin_addr.S_un.S_addr = INADDR_ANY;// inet_addr(_address);
+	int result = setsockopt(m_udpSocket, SOL_SOCKET, SO_REUSEADDR, &broadcast, sizeof(broadcast));
+	
+	// Connect
+	sockaddr_in serverAddr;
+	serverAddr.sin_family = AF_INET;
+	serverAddr.sin_addr.S_un.S_addr = INADDR_ANY;
+	serverAddr.sin_port = htons(1);
 
 	//// Set socket to blocking (0, instead of 1)
 	//u_long mode = 0;
@@ -38,16 +40,42 @@ int Client::Initialize(const char* _address, short _port)
 	//	std::cout << "DEBUG// I used the UDP non-block function" << std::endl;
 	//}
 
-	result = bind(m_udpSocket, (SOCKADDR*)&m_servaddr, sizeof(m_servaddr));
+	result = bind(m_udpSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr));
 	if (result == SOCKET_ERROR)
 	{
-		std::cout << "DEBUG// UCP bind function incorrect" << std::endl;
+		int erno = WSAGetLastError();
+		std::cout << "DEBUG// UDP bind function incorrect" << std::endl;
 		return BIND_ERROR;
 	}
 	else
 	{
-		std::cout << "DEBUG// I used the UCP bind function" << std::endl;
+		std::cout << "DEBUG// I used the UDP bind function" << std::endl;
 	}
+
+	int len = sizeof(struct sockaddr_in);
+	result = recvfrom(m_udpSocket, m_readBuffer, 1024, 0, (SOCKADDR*)&serverAddr, &len);
+	if (result == SOCKET_ERROR)
+	{
+		// HACK: Make a better error
+		std::cout << "Messed up" << std::endl;
+	}
+	else
+	{
+		std::cout << m_readBuffer << std::endl;
+	}
+
+	shutdown(m_udpSocket, SD_BOTH);
+	closesocket(m_udpSocket);
+
+	m_udpSocket = INVALID_SOCKET;
+
+	// Get IP address from user
+	HelperFunctionality::GetValidIPAddress(m_tempBuffer, USHRT_MAX);
+
+	// Get port number from user
+	constexpr int LOWEST_PORT_NUMBER_AVAILABLE = 1;
+	ushort port = static_cast<short>(HelperFunctionality::GetUserInt("Please enter a port number", USHRT_MAX, LOWEST_PORT_NUMBER_AVAILABLE));
+
 
 	// Create socket
 	m_tcpSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -75,20 +103,21 @@ int Client::Initialize(const char* _address, short _port)
 	//}
 
 	//If address is not in dotted - quadrant format, returns ADDRESS_ERROR.
-	if (inet_addr(_address) == INADDR_NONE)
+	if (inet_addr(m_tempBuffer) == INADDR_NONE)
 	{
 		return ADDRESS_ERROR;
 	}
 
-	// Connect
-	sockaddr_in serverAddr;
-	serverAddr.sin_family = AF_INET;
-	serverAddr.sin_addr.S_un.S_addr = inet_addr(_address);
-	serverAddr.sin_port = htons(_port);
+	//// Connect
+	sockaddr_in serverAddr2;
+	serverAddr2.sin_family = AF_INET;
+	serverAddr2.sin_addr.S_un.S_addr = inet_addr(m_tempBuffer);
+	serverAddr2.sin_port = htons(port);
 
-	result = connect(m_tcpSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr));
+	result = connect(m_tcpSocket, (SOCKADDR*)&serverAddr2, sizeof(serverAddr2));
 	if (result == SOCKET_ERROR)
 	{
+		int erno = WSAGetLastError();
 		std::cout << "DEBUG// Connect function incorrect" << std::endl;
 		
 		int error = WSAGetLastError();
@@ -99,23 +128,18 @@ int Client::Initialize(const char* _address, short _port)
 		std::cout << "DEBUG// I used the Connect function" << std::endl;
 	}
 
-	// Server will ask for a username
+	// Server returns connection response
 	HandleReturnValue(HandleMessageReceive(m_tcpSocket));
 	
 	if (strcmp(m_readBuffer, SV_SUCCESS) == 0)
 	{
-		// Get user name
-		HelperFunctionality::GetUserString("Please enter a username: ", m_userName, USHRT_MAX);
-		
-		GenerateCommand(CREGISTER);
-
-		// Client will return a username
-		HandleReturnValue(HandleMessageSend(m_tcpSocket, m_tempBuffer));
-		
+		m_connectionStatus = SCONNECTED;
+		std::cout << "Connected to the server!" << std::endl;
 		return SUCCESS;
 	}
 	else
 	{
+		m_connectionStatus = SNOT_CONNECTED;
 		return DISCONNECT;
 	}
 }
@@ -128,29 +152,27 @@ void Client::Update()
 #pragma endregion
 
 #pragma region Public Functionality
-void Client::ReadTCP()
+void Client::ReadMess()
 {
-	HandleReturnValue(HandleMessageReceive(m_tcpSocket));
-}
-void Client::ReadUDP()
-{
-	/*if (m_readUDPBuffer != nullptr)
+	// If client is connected or registered
+	if (m_connectionStatus > SNOT_CONNECTED)
 	{
-		memset(m_readUDPBuffer, '\0', USHRT_MAX);
-	}*/
+		// Read TCP
+		HandleReturnValue(HandleMessageReceive(m_tcpSocket));
 
-	int len = sizeof(struct sockaddr_in);
-	int result = recvfrom(m_udpSocket, m_readUDPBuffer, 1024, 0, (SOCKADDR*)&m_servaddr, &len);
-	if (result == SOCKET_ERROR)
-	{
-		std::cout << "Messed up" << std::endl;
-	}
-	else
-	{
-		std::cout << m_readUDPBuffer << std::endl;
+		if (strcmp(m_readBuffer, RREGISTERED) == 0)
+		{
+			//std::cout << "Registered to the server!" << std::endl;
+			m_connectionStatus = SREGISTERED;
+		}
+
+		// If client is just connected, read UDP
+		if (m_connectionStatus == SCONNECTED)
+		{
+		}
 	}
 }
-void Client::SendTCP()
+void Client::SendMess()
 {
 	HelperFunctionality::GetUserString(nullptr, m_tempBuffer, USHRT_MAX);
 
@@ -166,20 +188,60 @@ void Client::SendTCP()
 		}
 		else if (strcmp(m_tempBuffer, CGET_LIST) == 0)
 		{
-			GenerateCommand(CGET_LIST);
-			HandleReturnValue(HandleMessageSend(m_tcpSocket, m_tempBuffer));
-			HandleReturnValue(HandleMessageReceive(m_tcpSocket));
-			return;
+			if (m_connectionStatus == SREGISTERED)
+			{
+				GenerateCommand(CGET_LIST);
+			}
+			else
+			{
+				std::cout << "Must be registered to the server before this command can be performed!" << std::endl;
+
+				return;
+			}
 		}
 		else if (strcmp(m_tempBuffer, CGET_LOG) == 0)
 		{
-			GenerateCommand(CGET_LOG);
+			if (m_connectionStatus == SREGISTERED)
+			{
+				GenerateCommand(CGET_LOG);
+			}
+			else
+			{
+				std::cout << "Must be registered to the server before this command can be performed!" << std::endl;
+
+				return;
+			}
+		}
+		else if (strcmp(m_tempBuffer, CREGISTER) == 0)
+		{
+			if (m_connectionStatus != SREGISTERED)
+			{
+				// Get user name
+				HelperFunctionality::GetUserString("Please enter a username: ", m_userName, USHRT_MAX);
+
+				GenerateCommand(CREGISTER);
+			}
+			else
+			{
+				std::cout << "You're already registered to the server!" << std::endl;
+
+				return;
+			}
+		}
+
+		HandleReturnValue(HandleMessageSend(m_tcpSocket, m_tempBuffer));
+	}
+	else
+	{
+		if (m_connectionStatus == SREGISTERED)
+		{
 			HandleReturnValue(HandleMessageSend(m_tcpSocket, m_tempBuffer));
-			return;
+		}
+		else
+		{
+			std::cout << "Must be registered to the server before messages can be sent, with the exeption of " <<  CEXIT << " & " << CREGISTER << "!" << std::endl;
 		}
 	}
-
-	HandleReturnValue(HandleMessageSend(m_tcpSocket, m_tempBuffer));
 }
 #pragma endregion
 
@@ -191,8 +253,29 @@ int Client::HandleMessageReceive(SOCKET _socket)
 
 	if (returnValue == SUCCESS)
 	{
-		// Print message to the console
-		std::cout << m_readUDPBuffer << std::endl;
+		if (strcmp(m_readBuffer, CGET_LOG_START) == 0)
+		{
+			m_islogging = true;
+			memset(m_tempBuffer, '\0', USHRT_MAX);
+			strcpy(m_tempBuffer, m_userName);
+			strcat(m_tempBuffer, ".txt");
+			m_outStream.open(m_tempBuffer, std::ios::out);
+		}
+		else if (strcmp(m_readBuffer, CGET_LOG_FINISH) == 0)
+		{
+			m_islogging = false;
+			m_outStream.close();
+		}
+
+		if (m_islogging)
+		{
+			if (m_outStream.is_open())
+			{
+				m_outStream << m_readBuffer << '\n';
+			}
+		}
+
+		std::cout << m_readBuffer << std::endl;
 	}
 
 	return returnValue;
@@ -206,6 +289,7 @@ void Client::CloseSockets()
 	closesocket(m_tcpSocket);
 
 	m_tcpSocket = INVALID_SOCKET;
+	m_connectionStatus = SNOT_CONNECTED;
 }
 void Client::GenerateCommand(const char* _command)
 {

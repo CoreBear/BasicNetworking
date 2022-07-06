@@ -1,7 +1,7 @@
 #include "Server.h"
 
 #pragma region Initialization
-int Server::Initialize(const char* _address, short _port)
+int Server::Initialize(short _port)
 {
 	m_udpSocket = socket(AF_INET, SOCK_DGRAM, 0);
 	if (m_udpSocket == INVALID_SOCKET)
@@ -15,7 +15,7 @@ int Server::Initialize(const char* _address, short _port)
 	}
 
 	char broadcast = '1';
-	int result = setsockopt(m_udpSocket, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)); 
+	int result = setsockopt(m_udpSocket, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast));
 	//// Set socket to non-blocking
 	//u_long mode = 0;
 	//int result = ioctlsocket(m_udpSocket, FIONBIO, &mode);
@@ -31,19 +31,30 @@ int Server::Initialize(const char* _address, short _port)
 
 	// Bind address/port
 	m_serverAddr.sin_family = AF_INET;
-	m_serverAddr.sin_addr.S_un.S_addr = inet_addr("127.0.255.255");
-	m_serverAddr.sin_port = htons(_port);
+	m_serverAddr.sin_addr.S_un.S_addr = INADDR_BROADCAST;// inet_addr("127.0.0.1");// 255.255");
+	m_serverAddr.sin_port = htons(1);
 
 	//result = bind(m_udpSocket, (SOCKADDR*)&m_serverAddr, sizeof(m_serverAddr));
 	//if (result == SOCKET_ERROR)
 	//{
-	//	std::cout << "DEBUG// UCP bind function incorrect" << std::endl;
+	//	std::cout << "DEBUG// UDP bind function incorrect" << std::endl;
 	//	return BIND_ERROR;
 	//}
 	//else
 	//{
-	//	std::cout << "DEBUG// I used the UCP bind function" << std::endl;
+	//	std::cout << "DEBUG// I used the UDP bind function" << std::endl;
 	//}
+
+	std::sprintf(m_portString, "%d", _port);
+
+	memset(m_tempBuffer, '\0', USHRT_MAX);
+	strcpy(m_tempBuffer, "IP_Address: ");
+	strcat(m_tempBuffer, m_addressNumber);
+	strcat(m_tempBuffer, " | ");
+	strcat(m_tempBuffer, "Port_Number: ");
+	strcat(m_tempBuffer, m_portString);
+
+	sendto(m_udpSocket, m_tempBuffer, static_cast<int>(strlen(m_tempBuffer) + 1), 0, (SOCKADDR*)&m_serverAddr, sizeof(m_serverAddr));
 
 	// Create tcp socket for listening
 	m_tcpSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -88,10 +99,30 @@ int Server::Initialize(const char* _address, short _port)
 
 	std::cout << "Waiting..." << std::endl;
 
+	std::ofstream outStream("Log.txt", std::ios::out | std::ios::trunc);
+
+	if (outStream.is_open())
+	{
+		//outStream << _logPrintString;
+
+		outStream.close();
+	}
+
 	return SUCCESS;
 }
-Server::Server() : Host(false)
+Server::Server()
 {
+	// Examples
+	// IP (Loopback) - "127.0.0.1"
+	// Port - 31337
+	
+	// Get IP address from user
+	HelperFunctionality::GetValidIPAddress(m_addressNumber, USHRT_MAX);
+
+	// Get port number from user
+	constexpr int LOWEST_PORT_NUMBER_AVAILABLE = 1;
+	m_portNumber = static_cast<short>(HelperFunctionality::GetUserInt("Please enter a port number", USHRT_MAX, LOWEST_PORT_NUMBER_AVAILABLE));
+
 	strcpy(m_userName, "HostDaddy");
 
 	constexpr int MAX_NUMBER_OF_USERS = 4, MIN_NUMBER_OF_USERS = 1;
@@ -99,7 +130,7 @@ Server::Server() : Host(false)
 	// Add an additional, to account for the server
 	m_maxNumberOfUsers++;
 
-	HandleReturnValue(Initialize(nullptr, m_portNumber));
+	HandleReturnValue(Initialize(m_portNumber));
 
 	m_timeVal.tv_sec = 1;
 
@@ -107,7 +138,6 @@ Server::Server() : Host(false)
 
 	User* server = new User();
 	server->m_socket = m_tcpSocket;
-	server->m_connectionStatus = SREGISTERED;
 	server->m_userName = m_userName;
 
 	m_connectedAndOrRegisteredUsers.push_back(server);
@@ -132,14 +162,15 @@ void Server::Update()
 	}
 
 	int result = select(static_cast<size_t>(DescriptorType::NumberOfTypes), &m_readyDescriptors[static_cast<size_t>(DescriptorType::Read)], NULL, NULL, &m_timeVal);
-	
+
 	memset(m_tempBuffer, '\0', USHRT_MAX);
 	strcpy(m_tempBuffer, "IP_Address: ");
-	strcat(m_tempBuffer, "127.0.0.1 | ");
+	strcat(m_tempBuffer, m_addressNumber);
+	strcat(m_tempBuffer, " | ");
 	strcat(m_tempBuffer, "Port_Number: ");
-	strcat(m_tempBuffer, "3");// itoa(m_portNumber));
+	strcat(m_tempBuffer, m_portString);
 
-	sendto(m_udpSocket, m_tempBuffer, strlen(m_tempBuffer) + 1, 0, (SOCKADDR*)&m_serverAddr, sizeof(m_serverAddr));
+	sendto(m_udpSocket, m_tempBuffer, static_cast<int>(strlen(m_tempBuffer) + 1), 0, (SOCKADDR*)&m_serverAddr, sizeof(m_serverAddr));
 
 	// Error occurred during select
 	if (result < 0)
@@ -169,7 +200,6 @@ void Server::Update()
 			{
 				User* server = new User();
 				server->m_userName = nullptr;
-				server->m_connectionStatus = SCONNECTED;
 				server->m_socket = m_clientReadySocket;
 
 				// Add the new connection
@@ -177,8 +207,11 @@ void Server::Update()
 
 				// Send message to connecting client
 				HandleReturnValue(HandleMessageSend(m_clientReadySocket, SV_SUCCESS));
-
-				std::cout << "New client " << RCONNECTED << std::endl;
+				
+				memset(m_logBuffer, '\0', USHRT_MAX);
+				strcpy(m_logBuffer, "New client ");
+				strcat(m_logBuffer, RCONNECTED);
+				LogAndPrintToConsole(m_logBuffer);
 			}
 
 			// If server is full
@@ -213,8 +246,11 @@ void Server::Update()
 					// If not a command
 					if (m_readBuffer[0] != '$')
 					{
-						// Print message to the console
-						std::cout << m_connectedAndOrRegisteredUsers[i]->m_userName << ": " << m_readBuffer << std::endl;
+						memset(m_logBuffer, '\0', USHRT_MAX);
+						strcpy(m_logBuffer, m_connectedAndOrRegisteredUsers[i]->m_userName);
+						strcat(m_logBuffer, ": ");
+						strcat(m_logBuffer, m_readBuffer);
+						LogAndPrintToConsole(m_logBuffer);
 
 						memset(m_tempBuffer, '\0', USHRT_MAX);
 						strcpy(m_tempBuffer, m_connectedAndOrRegisteredUsers[i]->m_userName);
@@ -259,20 +295,33 @@ void Server::CloseSockets()
 }
 void Server::DisconnectUser(size_t _userBeingDisconnectedIndex)
 {
-	// Print message to the console
-	std::cout << RDISCONNECTED << " " << m_connectedAndOrRegisteredUsers[_userBeingDisconnectedIndex]->m_userName << std::endl;
-	
-	memset(m_tempBuffer, '\0', USHRT_MAX);
-	strcpy(m_tempBuffer, RDISCONNECTED);
-	strcat(m_tempBuffer, " ");
-	strcat(m_tempBuffer, m_connectedAndOrRegisteredUsers[_userBeingDisconnectedIndex]->m_userName);
-
-	for (size_t i = 1; i < m_connectedAndOrRegisteredUsers.size(); i++)
+	if (m_connectedAndOrRegisteredUsers[_userBeingDisconnectedIndex]->m_userName != nullptr)
 	{
-		if (i != _userBeingDisconnectedIndex)
+		memset(m_logBuffer, '\0', USHRT_MAX);
+		strcpy(m_logBuffer, RDISCONNECTED);
+		strcat(m_logBuffer, ": ");
+		strcat(m_logBuffer, m_connectedAndOrRegisteredUsers[_userBeingDisconnectedIndex]->m_userName);
+		LogAndPrintToConsole(m_logBuffer);
+
+		memset(m_tempBuffer, '\0', USHRT_MAX);
+		strcpy(m_tempBuffer, RDISCONNECTED);
+		strcat(m_tempBuffer, " ");
+		strcat(m_tempBuffer, m_connectedAndOrRegisteredUsers[_userBeingDisconnectedIndex]->m_userName);
+
+		for (size_t i = 1; i < m_connectedAndOrRegisteredUsers.size(); i++)
 		{
-			HandleReturnValue(HandleMessageSend(m_connectedAndOrRegisteredUsers[i]->m_socket, m_tempBuffer));
+			if (i != _userBeingDisconnectedIndex)
+			{
+				HandleReturnValue(HandleMessageSend(m_connectedAndOrRegisteredUsers[i]->m_socket, m_tempBuffer));
+			}
 		}
+	}
+	else
+	{
+		memset(m_logBuffer, '\0', USHRT_MAX);
+		strcpy(m_logBuffer, RDISCONNECTED);
+		strcat(m_logBuffer, " no name user!");
+		LogAndPrintToConsole(m_logBuffer);
 	}
 
 	shutdown(m_connectedAndOrRegisteredUsers[_userBeingDisconnectedIndex]->m_socket, SD_BOTH);
@@ -350,8 +399,11 @@ void Server::HandleCommand(size_t _userBeingReadIndex)
 
 		HandleReturnValue(HandleMessageSend(m_connectedAndOrRegisteredUsers[_userBeingReadIndex]->m_socket, m_tempBuffer));
 
-		// Print message to the console
-		std::cout << RGOT_LIST << " " << userName << std::endl;
+		memset(m_logBuffer, '\0', USHRT_MAX);
+		strcpy(m_logBuffer, RGOT_LIST);
+		strcat(m_logBuffer, " ");
+		strcat(m_logBuffer, userName);
+		LogAndPrintToConsole(m_logBuffer);
 
 		memset(m_tempBuffer, '\0', USHRT_MAX);
 		strcpy(m_tempBuffer, RGOT_LIST);
@@ -368,9 +420,27 @@ void Server::HandleCommand(size_t _userBeingReadIndex)
 	}
 	else if (strcmp(m_readBuffer, CGET_LOG) == 0)
 	{
+		std::ifstream inStream("Log.txt", std::ios::in);
 
-		// Print message to the console
-		std::cout << RGOT_LOG << " " << userName << std::endl;
+		HandleReturnValue(HandleMessageSend(m_connectedAndOrRegisteredUsers[_userBeingReadIndex]->m_socket, CGET_LOG_START));
+
+		if (inStream.is_open())
+		{
+			while (inStream.getline(m_tempBuffer, USHRT_MAX, '\n'))
+			{
+				HandleReturnValue(HandleMessageSend(m_connectedAndOrRegisteredUsers[_userBeingReadIndex]->m_socket, m_tempBuffer));
+			}
+
+			inStream.close();
+		}
+
+		HandleReturnValue(HandleMessageSend(m_connectedAndOrRegisteredUsers[_userBeingReadIndex]->m_socket, CGET_LOG_FINISH));
+
+		memset(m_logBuffer, '\0', USHRT_MAX);
+		strcpy(m_logBuffer, RGOT_LOG);
+		strcat(m_logBuffer, " ");
+		strcat(m_logBuffer, userName);
+		LogAndPrintToConsole(m_logBuffer);
 
 		memset(m_tempBuffer, '\0', USHRT_MAX);
 		strcpy(m_tempBuffer, RGOT_LOG);
@@ -388,16 +458,23 @@ void Server::HandleCommand(size_t _userBeingReadIndex)
 	else if (strcmp(m_readBuffer, CREGISTER) == 0)
 	{
 		m_connectedAndOrRegisteredUsers[_userBeingReadIndex]->m_userName = userName;
-		m_connectedAndOrRegisteredUsers[_userBeingReadIndex]->m_connectionStatus = SREGISTERED;
-
-		// Print message to the console
-		std::cout << RREGISTERED << " " << userName << std::endl;
-
+		
 		memset(m_tempBuffer, '\0', USHRT_MAX);
 		strcpy(m_tempBuffer, RREGISTERED);
+
+		HandleReturnValue(HandleMessageSend(m_connectedAndOrRegisteredUsers[_userBeingReadIndex]->m_socket, m_tempBuffer));
+
+		memset(m_logBuffer, '\0', USHRT_MAX);
+		strcpy(m_logBuffer, RREGISTERED);
+		strcat(m_logBuffer, " ");
+		strcat(m_logBuffer, userName);
+		LogAndPrintToConsole(m_logBuffer);
+
+		//memset(m_tempBuffer, '\0', USHRT_MAX);
+		//strcpy(m_tempBuffer, RREGISTERED);
 		strcat(m_tempBuffer, " ");
 		strcat(m_tempBuffer, userName);
-
+		
 		for (size_t i = 1; i < m_connectedAndOrRegisteredUsers.size(); i++)
 		{
 			if (i != _userBeingReadIndex)
@@ -408,8 +485,11 @@ void Server::HandleCommand(size_t _userBeingReadIndex)
 	}
 	else
 	{
-		// Print message to the console
-		std::cout << m_connectedAndOrRegisteredUsers[_userBeingReadIndex]->m_userName << ": " << m_readBuffer << std::endl;
+		memset(m_logBuffer, '\0', USHRT_MAX);
+		strcpy(m_logBuffer, m_connectedAndOrRegisteredUsers[_userBeingReadIndex]->m_userName);
+		strcat(m_logBuffer, ": ");
+		strcat(m_logBuffer, m_readBuffer);
+		LogAndPrintToConsole(m_logBuffer);
 
 		memset(m_tempBuffer, '\0', USHRT_MAX);
 		strcpy(m_tempBuffer, m_connectedAndOrRegisteredUsers[_userBeingReadIndex]->m_userName);
@@ -421,6 +501,19 @@ void Server::HandleCommand(size_t _userBeingReadIndex)
 			HandleReturnValue(HandleMessageSend(m_connectedAndOrRegisteredUsers[i]->m_socket, m_tempBuffer));
 		}
 	}
+}
+void Server::LogAndPrintToConsole(const char* _logPrintString)
+{
+	std::ofstream outStream("Log.txt", std::ios::out | std::ios::app);
+
+	if (outStream.is_open())
+	{
+		outStream << _logPrintString << '\n';
+
+		outStream.close();
+	}
+
+	std::cout << _logPrintString << std::endl;
 }
 #pragma endregion
 

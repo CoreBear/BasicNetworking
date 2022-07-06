@@ -59,13 +59,23 @@ int HelperFunctionality::GetUserInt(const char* _prompt, int _max, int _min)
 }
 void HelperFunctionality::GetUserString(const char* _prompt, char* _buffer, int _bufferLength)
 {
-	// Prompt user (if applicable)
-	if (_prompt != nullptr)
+	do
 	{
-		std::cout << _prompt;
-	}
+		// Prompt user (if applicable)
+		if (_prompt != nullptr)
+		{
+			std::cout << _prompt;
+		}
 
-	std::cin.getline(_buffer, _bufferLength);
+		std::cin.getline(_buffer, _bufferLength);
+
+		if (strcmp(_buffer, "") != 0)
+		{
+			break;
+		}
+
+		std::cout << "Please enter some text before pressing enter/return." << std::endl;
+	} while (true);
 }
 int HelperFunctionality::GetUserSelection(const char* _prompt, const char** _options, int _numberOfOptions)
 {

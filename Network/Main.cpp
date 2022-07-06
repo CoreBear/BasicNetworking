@@ -13,25 +13,18 @@ void MainThread(Host* _host)
 		_host->Update();
 	}
 }
-void ReadTCP(Host* _host)
+void ReadThread(Host* _host)
 {
 	while (_host->HostIsConnected())
 	{
-		_host->ReadTCP();
+		_host->ReadMess();
 	}
 }
-void ReadUDP(Host* _host)
+void SendThread(Host* _host)
 {
 	while (_host->HostIsConnected())
 	{
-		_host->ReadUDP();
-	}
-}
-void SendTCP(Host* _host)
-{
-	while (_host->HostIsConnected())
-	{
-		_host->SendTCP();
+		_host->SendMess();
 	}
 }
 int main()
@@ -46,7 +39,6 @@ int main()
 
 	while (true)
 	{
-		bool mainThreadIsInItsFunction = false;
 		const int hostTypeSelection = HelperFunctionality::GetUserSelection("Would you like to create a Client or Server?", options, NUMBER_OF_MENU_OPTIONS);
 
 		Host* host = nullptr;
@@ -60,9 +52,10 @@ int main()
 
 			if (host->HostIsConnected())
 			{
-				std::thread rTCP(ReadTCP, host);
-				std::thread rUDP(ReadUDP, host);
-				std::thread sTCP(SendTCP, host);
+				bool mainThreadIsInItsFunction = false;
+
+				std::thread readThread(ReadThread, host);
+				std::thread sendThread(SendThread, host);
 
 				if (mainThreadIsInItsFunction == false)
 				{
@@ -71,9 +64,8 @@ int main()
 					MainThread(host);
 				}
 
-				rTCP.join();
-				rUDP.join();
-				sTCP.join();
+				readThread.join();
+				sendThread.join();
 			}
 		}
 			break;
@@ -94,7 +86,7 @@ int main()
 		delete host;
 		host = nullptr;
 
-		std::cout << "Host connection was closed, please try again.";
+		std::cout << "Host connection was closed, please try again." << std::endl;
 		system("pause");
 		system("cls");
 	}

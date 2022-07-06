@@ -7,8 +7,9 @@ class Client final : public Host
 {
 #pragma region Variables
 private:
-	char m_readUDPBuffer[USHRT_MAX];
-	sockaddr_in m_servaddr;
+	bool m_islogging;
+	int m_connectionStatus;
+	std::ofstream m_outStream;
 	SOCKET m_udpSocket;
 #pragma endregion
 
@@ -17,7 +18,7 @@ public:
 	Client();
 
 protected:
-	virtual int Initialize(const char* _address, short _port) override;
+	int Initialize();
 #pragma endregion
 
 #pragma region Update
@@ -27,9 +28,8 @@ public:
 
 #pragma region Functionality
 public:
-	virtual void ReadTCP() override;
-	virtual void ReadUDP() override;
-	virtual void SendTCP() override;
+	virtual void ReadMess() override;
+	virtual void SendMess() override;
 
 protected:
 	virtual int HandleMessageReceive(SOCKET _socket) override;

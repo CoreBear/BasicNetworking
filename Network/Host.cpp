@@ -1,26 +1,13 @@
 #include "Host.h"
 
 #pragma region Initialization
-Host::Host(bool _getIPFromUser) : m_tcpSocket(0)
+Host::Host() : m_tcpSocket(0)
 {
 	// Initiates use of WS2_32.DLL by a processand must be called before any network functions!
 	WSADATA wsadata;
-	WSAStartup(WINSOCK_VERSION, &wsadata);
+	int result = WSAStartup(WINSOCK_VERSION, &wsadata);
 
 	m_userName = new char[USHRT_MAX];
-
-	// Examples
-	// IP (Loopback) - "127.0.0.1"
-	// Port - 31337
-	if (_getIPFromUser)
-	{
-		// Get IP address from user
-		HelperFunctionality::GetValidIPAddress(m_tempBuffer, UCHAR_MAX);
-	}
-
-	// Get port number from user
-	constexpr int LOWEST_PORT_NUMBER_AVAILABLE = 1;
-	m_portNumber = static_cast<short>(HelperFunctionality::GetUserInt("Please enter a port number", USHRT_MAX, LOWEST_PORT_NUMBER_AVAILABLE));
 }
 #pragma endregion
 

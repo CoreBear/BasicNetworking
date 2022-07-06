@@ -7,16 +7,19 @@
 //#include <ws2tcpip.h>                         // only need if you use inet_pton
 #pragma comment(lib,"Ws2_32.lib")
 //#include <stdio.h>
+#include <fstream>
 
 #include "HelperFunctionality.h"
 
 // Command
-#define CCONNECT	"$connect"
-#define CDISCONNECT	"$disconnect"
-#define CEXIT		"$exit"
-#define CGET_LIST	"$get_list"
-#define CGET_LOG	"$get_log"
-#define CREGISTER	"$register"
+#define CCONNECT		"$connect"
+#define CDISCONNECT		"$disconnect"
+#define CEXIT			"$exit"
+#define CGET_LIST		"$get_list"
+#define CGET_LOG		"$get_log"
+#define CGET_LOG_FINISH	"$get_log_start"
+#define CGET_LOG_START	"$get_log_finish"
+#define CREGISTER		"$register"
 
 // Response
 #define RCONNECTED		"connected"
@@ -43,9 +46,9 @@
 #define SV_SUCCESS	"Server_Connection_Established"
 
 // Status
-#define SCONNECTED 0
-#define SREGISTERED 1
-
+#define SNOT_CONNECTED 0
+#define SCONNECTED 1
+#define SREGISTERED 2
 
 class Host
 {
@@ -58,13 +61,11 @@ protected:
 	char m_tempBuffer[USHRT_MAX];
 	char* m_userName;
 	SOCKET m_tcpSocket;
-	ushort m_portNumber;
 #pragma endregion
 
 #pragma region Initialization
 protected:
-	Host(bool _getIPFromUser);
-	virtual int Initialize(const char* _address, short _port) = 0;
+	Host();
 #pragma endregion
 
 #pragma region Update
@@ -78,9 +79,8 @@ public:
 	{
 		return (m_tcpSocket != INVALID_SOCKET) ? true : false;
 	}
-	virtual void ReadTCP() { return; }
-	virtual void ReadUDP() { return; }
-	virtual void SendTCP() { return; }
+	virtual void ReadMess() { return; }
+	virtual void SendMess() { return; }
 
 protected:
 	virtual int HandleMessageReceive(SOCKET _socket);

@@ -12,13 +12,15 @@ private:
 	struct User
 	{
 		const char* m_userName;
-		int m_connectionStatus;
 		SOCKET m_socket;
 	};
 #pragma endregion
 
 #pragma region Variables
 private:
+	char m_addressNumber[15];
+	char m_logBuffer[USHRT_MAX];
+	char m_portString[6];
 	enum class DescriptorType { Exception, Read, Write, NumberOfTypes };
 	fd_set m_readyDescriptors[static_cast<size_t>(DescriptorType::NumberOfTypes)];
 	int m_maxNumberOfUsers;
@@ -26,12 +28,13 @@ private:
 	SOCKET m_clientReadySocket;
 	SOCKET m_udpSocket;
 	timeval m_timeVal;
+	ushort m_portNumber;;
 	std::vector<User*> m_connectedAndOrRegisteredUsers;// (MAX_NUMBER_OF_USERS);
 #pragma endregion
 
 #pragma region Initialization
 protected:
-	virtual int Initialize(const char* _address, short _port) override;
+	int Initialize(short _port);
 
 public:
 	Server();
@@ -47,6 +50,7 @@ private:
 	virtual void CloseSockets() override;
 	void DisconnectUser(size_t _userBeingDisconnectedIndex);
 	void HandleCommand(size_t _userBeingReadIndex);
+	void LogAndPrintToConsole(const char* _logPrintString);
 #pragma endregion
 
 #pragma region Denitialization
